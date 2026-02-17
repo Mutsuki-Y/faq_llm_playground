@@ -201,6 +201,7 @@ docker compose down -v       # コンテナ停止 + MongoDBデータ削除
 
 ### Excelファイルの形式
 [サンプルファイルはここからダウンロード可能](https://helpme.center/ja/faq-sample/dept-it/) 
+ここでダウンロードしたものは1枚目のシートを削除しておいてください。
 
 Excelファイル（.xlsx）は以下のカラム構成を想定しています（1行目はヘッダー）:
 
