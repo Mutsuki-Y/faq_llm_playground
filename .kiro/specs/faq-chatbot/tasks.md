@@ -1,0 +1,147 @@
+# 実装計画
+
+- [x] 1. Docker開発環境の構築
+  - [x] 1.1 プロジェクトのディレクトリ構造と依存パッケージ定義を作成する
+    - `backend/` 配下に `etl/`, `store/`, `llm/`, `services/`, `api/`, `evaluation/` ディレクトリを作成
+    - `backend/requirements.txt` にFastAPI、uvicorn、chromadb、openpyxl、openai、motor、pydantic-settings、hypothesis、pytest、httpx、deepevalを定義
+    - `frontend/` ディレクトリのプレースホルダーを作成（Vue.jsプロジェクトは後のタスクで初期化）
+    - `.env.example` にAPIキー等の環境変数テンプレートを作成
+    - _要件: 10.1, 11.5_
+  - [x] 1.2 Dockerfileとdocker-compose.ymlを作成する
+    - バックエンド用Dockerfile（Python 3.14ベース、requirements.txtからパッケージインストール、ホットリロード対応）
+    - docker-compose.ymlでバックエンド、MongoDB の2サービスを定義（フロントエンドは後のタスクで追加）
+    - ボリュームマウント: バックエンドソースコード、ChromaDBデータ、FAQソースExcel、画像ディレクトリ、MongoDBデータ
+    - .envファイルからの環境変数読み込み
+    - `docker compose up` でバックエンド開発環境が起動することを確認
+    - _要件: 11.1, 11.2, 11.3, 11.4, 11.5_
+  - [x] 1.3 テスト実行用のdocker composeコマンドを整備する
+    - `docker compose run --rm backend pytest` でコンテナ内テスト実行ができることを確認
+    - _要件: 11.1_
+
+- [x] 2. データモデルと設定管理の実装
+  - [x] 2.1 Pydanticデータモデルを実装する
+    - `backend/models.py` にContentType、FAQEntry、Chunk、ChunkMetadata、ImageDocument、ImageMetadata、SearchResult、ChatMessage、SourceInfo、LLMResponse、ChatRequest、ChatResponse、IngestResult、EvaluationResult、EvalTestCaseを定義
+    - _要件: 1.2, 1.3, 3.4, 9.1_
+  - [x] 2.2 プロパティテスト: ChunkとImageDocumentのシリアライゼーション往復
+    - **プロパティ2: ChunkとImageDocumentのシリアライゼーション往復**
+    - **検証対象: 要件 9.3**
+  - [x] 2.3 プロパティテスト: 評価テストケースJSON解析の往復
+    - **プロパティ9: 評価テストケースJSON解析の往復**
+    - **検証対象: 要件 13.2**
+  - [x] 2.4 AppConfigクラスを実装する
+    - `backend/config.py` にpydantic-settingsベースの設定クラスを作成
+    - 環境変数と.envファイルからの読み込み、デフォルト値の適用を実装
+    - 必須設定値の未設定時にバリデーションエラーを発生させる
+    - _要件: 10.1, 10.2, 10.3_
+
+- [x] 3. LLMクライアントの実装
+  - [x] 3.1 LLMクライアント抽象基底クラスを実装する
+    - `backend/llm/base.py` にchat_completion、generate_embedding、generate_embeddings、describe_imageの抽象メソッドを定義
+    - `backend/llm/factory.py` に設定に基づくファクトリ関数を実装
+    - _要件: 8.1, 8.2, 8.3_
+  - [x] 3.2 OpenAIクライアントを実装する
+    - `backend/llm/openai_client.py` にOpenAI APIを使用したチャット補完、Embedding生成、画像説明生成を実装
+    - _要件: 2.1, 3.2, 8.2_
+  - [x] 3.3 Vertex AIクライアントのスタブを実装する
+    - `backend/llm/vertexai_client.py` に将来用のスタブ実装を作成
+    - _要件: 8.2_
+
+- [x] 4. ETLパイプラインの実装
+  - [x] 4.1 Excel読み込みモジュールを実装する
+    - `backend/etl/excel_reader.py` にExcelReaderクラスを実装
+    - openpyxlでExcelファイルを読み込み、ステータス「公開」の行をフィルタリング
+    - タイトルと本文を結合してChunkを生成、メタデータ（ソースファイル名、シート名、行番号、親カテゴリ、子カテゴリ）を付与
+    - _要件: 1.1, 1.2, 1.3_
+  - [x] 4.2 プロパティテスト: FAQフィルタリングとチャンク生成の正しさ
+    - **プロパティ1: FAQフィルタリングとチャンク生成の正しさ**
+    - **検証対象: 要件 1.2, 1.3, 1.5**
+  - [x] 4.3 画像処理モジュールを実装する
+    - `backend/etl/image_processor.py` にImageProcessorクラスを実装
+    - マルチモーダルAPIで画像の説明テキストを生成し、ImageDocumentを作成
+    - _要件: 3.1, 3.2, 3.3, 3.4_
+  - [x] 4.4 プロパティテスト: ImageDocumentメタデータの完全性
+    - **プロパティ8: ImageDocumentメタデータの完全性**
+    - **検証対象: 要件 3.4**
+  - [x] 4.5 ETLパイプラインを実装する
+    - `backend/etl/pipeline.py` にETLPipelineクラスを実装
+    - Excel取り込み、画像取り込み、一括取り込みメソッドを実装
+    - Embedding API失敗時のリトライ（1回）とエラー記録を実装
+    - 処理結果（処理件数、エラー件数）のログ記録を実装
+    - _要件: 1.4, 1.5, 2.1, 2.4_
+
+- [x] 5. ベクトルストアの実装
+  - [x] 5.1 ChromaDBベースのVectorStoreを実装する
+    - `backend/store/vector_store.py` にVectorStoreクラスを実装
+    - Chunk/ImageDocumentの追加、コサイン類似度検索、空チェックを実装
+    - 検索結果にcontent、score、メタデータ、content_typeを含める
+    - _要件: 2.2, 2.3, 4.2, 4.3_
+  - [x] 5.2 プロパティテスト: ベクトルストア検索結果の順序と完全性
+    - **プロパティ3: ベクトルストア検索結果の順序と完全性**
+    - **検証対象: 要件 4.2, 4.3, 3.5**
+
+- [x] 6. チェックポイント - すべてのテストが通ることを確認
+  - すべてのテストが通ることを確認し、問題があればユーザーに質問する。
+
+- [x] 7. セッション管理の実装
+  - [x] 7.1 MongoDBベースのSessionManagerを実装する
+    - `backend/services/session_manager.py` にSessionManagerクラスを実装
+    - motorを使用した非同期MongoDB操作
+    - セッション作成（一意のID発行）、メッセージ追加、直近N件の履歴取得を実装
+    - _要件: 6.1, 6.4, 6.5_
+  - [x] 7.2 プロパティテスト: セッション履歴の永続化往復
+    - **プロパティ5: セッション履歴の永続化往復**
+    - **検証対象: 要件 6.1, 6.4**
+  - [x] 7.3 プロパティテスト: 新規セッション初期化
+    - **プロパティ6: 新規セッション初期化**
+    - **検証対象: 要件 6.5**
+
+- [x] 8. チャットサービスの実装
+  - [x] 8.1 ChatServiceを実装する
+    - `backend/services/chat_service.py` にChatServiceクラスを実装
+    - RAGパイプライン: 質問Embedding化 → 類似検索 → プロンプト構築 → LLM回答生成
+    - システムプロンプト、コンテキスト、チャット履歴、質問を組み合わせたプロンプト構築
+    - ベクトルストア空時の「ナレッジベースが未構築です」メッセージ
+    - LLM API失敗時のエラーメッセージ
+    - _要件: 4.1, 4.4, 5.1, 5.2, 5.3, 5.4, 6.2, 6.3_
+  - [x] 8.2 プロパティテスト: プロンプト構築の完全性
+    - **プロパティ4: プロンプト構築の完全性**
+    - **検証対象: 要件 5.1, 5.4, 6.2**
+
+- [x] 9. REST APIの実装
+  - [x] 9.1 FastAPIルーターとエンドポイントを実装する
+    - `backend/api/routes.py` にPOST /api/chat、POST /api/ingest、GET /api/health、POST /api/sessionを実装
+    - `backend/main.py` にFastAPIアプリケーションのエントリポイントを作成
+    - バリデーションエラー時のHTTP 422レスポンスを実装
+    - _要件: 7.1, 7.2, 7.3, 7.4, 7.5_
+  - [x] 9.2 プロパティテスト: 不正リクエストに対する422レスポンス
+    - **プロパティ7: 不正リクエストに対する422レスポンス**
+    - **検証対象: 要件 7.3**
+
+- [x] 10. チェックポイント - すべてのテストが通ることを確認
+  - すべてのテストが通ることを確認し、問題があればユーザーに質問する。
+
+- [x] 11. DeepEval精度評価の実装
+  - [x] 11.1 RAGEvaluatorを実装する
+    - `backend/evaluation/evaluator.py` にRAGEvaluatorクラスを実装
+    - テストケースJSONの読み込み、Faithfulness・Answer Relevancy・Contextual Relevancyの評価実行
+    - 結果のJSON出力、テンプレート生成機能を実装
+    - _要件: 13.1, 13.2, 13.3, 13.4, 13.5_
+  - [x] 11.2 評価用CLIコマンドを実装する
+    - `backend/evaluation/cli.py` にCLIエントリポイントを作成
+    - _要件: 13.1_
+
+- [ ] 12. Vue.jsフロントエンドの実装
+  - [x] 12.1 Vue.js 3プロジェクトを作成しDockerに統合する
+    - Viteでプロジェクトを初期化し `frontend/` ディレクトリに配置
+    - フロントエンド用Dockerfile（Node.jsベース、ビルド後にnginxで配信）を作成
+    - docker-compose.ymlにフロントエンドサービスを追加
+    - _要件: 12.1, 11.1_
+  - [x] 12.2 チャットUIコンポーネントを実装する
+    - メッセージ入力欄、送信ボタン、会話履歴表示を実装
+    - POST /api/chatへのリクエスト送信と回答表示
+    - 画像ソースを含む回答の画像サムネイル/リンク表示
+    - ページ読み込み時のセッション作成（POST /api/session）
+    - _要件: 12.1, 12.2, 12.3, 12.4, 12.5_
+
+- [x] 13. 最終チェックポイント - すべてのテストが通ることを確認
+  - すべてのテストが通ることを確認し、問題があればユーザーに質問する。
