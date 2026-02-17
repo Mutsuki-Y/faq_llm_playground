@@ -48,6 +48,9 @@ htmlcov/
 *~
 .DS_Store
 
+# Kiro spec files
+.kiro/specs/
+
 # Node.js / Frontend
 node_modules/
 npm-debug.log*
