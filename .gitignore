@@ -2,7 +2,7 @@
 .env
 
 # Sample data (contains sensitive information)
-Sample_faq_dept_it_JP.xlsx
+*.xlsx
 
 # Python
 __pycache__/
